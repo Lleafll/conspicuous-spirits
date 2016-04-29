@@ -476,14 +476,14 @@ do
 		end
 			
 		if sourceGUID == playerGUID then
-			local spellID, _, _, _, _, _, _, _, _, _, _, _, _, multistrike = ...
+			local spellID = ...
 			-- Shadowy Apparition cast
 			if spellID == 147193 and destName ~= nil then  -- SAs without a target won't generate orbs
 				self:AddGUID(destGUID)
 				self:Update()
 			
 			-- catch all Shadowy Apparition hit events
-			elseif spellID == 148859 and not multistrike then
+			elseif spellID == 148859 then
 				local timerID = self:PopGUID(destGUID)
 				if timerID then
 					local currentTime = GetTime()
