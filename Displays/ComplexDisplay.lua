@@ -8,6 +8,7 @@ local LSM = LibStub("LibSharedMedia-3.0")
 --------------
 -- Upvalues --
 --------------
+local GetSpellCooldown = GetSpellCooldown
 local GetTime = GetTime
 local mathmax = math.max
 local stringformat = string.format
@@ -19,7 +20,7 @@ local stringformat = string.format
 local CDFrame = CS:CreateParentFrame("CS Complex Display", "complex")
 CD.frame = CDFrame
 CDFrame:Hide()
-local orbFrames = {}
+local gcdFrames = {}
 local fontStringParent
 local SATimers = {}
 local statusbars = {}
@@ -32,7 +33,7 @@ CDOnUpdateFrame:Hide()
 ---------------
 local db
 local orbCappedEnable
-local orbs
+local insanity
 local remainingTimeThreshold
 local statusbarCount
 local statusbarEnable
@@ -65,9 +66,43 @@ local borderBackdrop = {
 -- Functions --
 ---------------
 local function update()
+	local timeStamp = GetTime()
+	local haste = 100 + GetHaste()
+	local mbCdStart, mbCdDur = GetSpellCooldown(8092)
+	mbCdDur = mbCdDur or (900 / haste)
+	local gcdStart, gcdDur = GetSpellCooldown(61304)
+	gcdDur = gcdDur or (150 / haste)  -- TODO: add cap
+	local extrapolatedInsanity = insanity
+	
+	local mbReady = mbCdStart + mbCdDur - (gcdStart and (gcdStart + gcdDur) or timeStamp)
+	
+	-- Debug
+	print(mbReady)
+	
+	local i = 1
+	while extrapolatedInsanity < 60 do  -- TODO: Implement insanity cap w/ & w/o LotV
+		local gcdFrame = gcdFrames[i]
+		if mbReady <= 0 then
+			extrapolatedInsanity = extrapolatedInsanity + 15
+			gcdFrame:SetOrbCapColor()
+			mbReady = mbCdDur
+		else
+			extrapolatedInsanity = extrapolatedInsanity + 4
+			gcdFrame:SetOriginalColor()
+			mbReady = mbReady - gcdDur
+		end
+		gcdFrame:Show()
+		i = i + 1
+	end
+	
+	for i = i+1, statusbarCount do
+		gcdFrames[i]:Hide()
+	end
+	
+	--[[
 	for i = 1, statusbarCount do
 		if orbs >= i then
-			local orbFrame = orbFrames[i]
+			local orbFrame = gcdFrames[i]
 			if orbCappedEnable then
 				if (orbs == 5) and (not orbFrame.orbCapColored) then
 					orbFrame:SetOrbCapColor()
@@ -80,7 +115,7 @@ local function update()
 			statusbars[i]:Hide()
 			
 		else
-			orbFrames[i]:Hide()
+			gcdFrames[i]:Hide()
 		end
 	end
 	
@@ -101,13 +136,11 @@ local function update()
 		if textEnable then SATimers[m]:Hide() end
 		statusbars[m]:Hide()
 	end
+	]]--
 end
 
-function CD:CONSPICUOUS_SPIRITS_UPDATE(_, updatedOrbs, updatedTimers)
-	-- Debug
-	CS:Debug(updatedOrbs, updatedTimers)
-	
-	orbs = updatedOrbs
+function CD:CONSPICUOUS_SPIRITS_UPDATE(_, updatedInsanity, updatedTimers)
+	insanity = updatedInsanity
 	timers = updatedTimers
 	update()
 end
@@ -232,7 +265,7 @@ local function buildFrames()
 	
 	do
 		local function createOrbFrame(numeration)
-			local frame = orbFrames[numeration] or CreateFrame("frame", nil, CDFrame)
+			local frame = gcdFrames[numeration] or CreateFrame("frame", nil, CDFrame)
 			frame:ClearAllPoints()
 			local displacement = (width + db.spacing) * (numeration - 1)
 			if orientation == "Vertical" then
@@ -275,6 +308,14 @@ local function buildFrames()
 			
 			local c1r, c1b, c1g, c1a = db.color1.r, db.color1.b, db.color1.g, db.color1.a 
 			local c2r, c2b, c2g, c2a = db.color2.r, db.color2.b, db.color2.g, db.color2.a 
+			
+			function frame:SetOriginalColor()
+				self:SetBackdropColor(c1r, c1b, c1g, c1a)
+				self.orbCapColored = false
+			end
+			frame:SetOriginalColor()
+			
+			--[[
 			if numeration <= 3 then
 				function frame:SetOriginalColor()
 					self:SetBackdropColor(c1r, c1b, c1g, c1a)
@@ -290,6 +331,7 @@ local function buildFrames()
 			else
 				frame:SetBackdropColor(0, 0, 0, 0)  -- dummy frame to anchor overflow fontstring to
 			end
+			]]--
 			
 			local c3r, c3b, c3g, c3a = db.orbCappedColor.r, db.orbCappedColor.b, db.orbCappedColor.g, db.orbCappedColor.a
 			function frame:SetOrbCapColor()
@@ -300,10 +342,11 @@ local function buildFrames()
 			return frame
 		end
 		for i = 1, statusbarCount do
-			orbFrames[i] = createOrbFrame(i)
+			gcdFrames[i] = createOrbFrame(i)
 		end
 	end
 	
+	--[[
 	if textEnable then
 		local function createTimerFontString(referenceFrame, numeration)
 			local parentFrame
@@ -361,7 +404,7 @@ local function buildFrames()
 			return parentFrame
 		end
 		for i = 1, statusbarCount do
-			SATimers[i] = createTimerFontString(orbFrames[i], i)
+			SATimers[i] = createTimerFontString(gcdFrames[i], i)
 			SATimers[i]:Show()
 		end
 		if #SATimers > statusbarCount then
@@ -416,7 +459,7 @@ local function buildFrames()
 			return frame
 		end
 		for i = 1, statusbarCount do
-			statusbars[i] = createStatusBars(orbFrames[i], i)
+			statusbars[i] = createStatusBars(gcdFrames[i], i)
 		end
 		local c1r, c1b, c1g, c1a = db.statusbarColorBackground.r, db.statusbarColorBackground.b, db.statusbarColorBackground.g, db.statusbarColorBackground.a
 		local c2r, c2b, c2g, c2a = db.statusbarColorOverflow.r, db.statusbarColorOverflow.b, db.statusbarColorOverflow.g, db.statusbarColorOverflow.a
@@ -433,6 +476,7 @@ local function buildFrames()
 			end
 		end
 	end
+	]]--
 end
 
 
@@ -471,7 +515,7 @@ function CD:Unlock()
 		
 		if i == statusbarCount then break end
 		
-		orbFrames[i]:Show()
+		gcdFrames[i]:Show()
 	end
 end
 
@@ -489,7 +533,8 @@ function CD:Build()
 	orbCappedEnable = db.orbCappedEnable
 	visibilityConditionals = db.visibilityConditionals or ""
 	
-	statusbarCount = 5 + db.statusbarCount
+	--statusbarCount = 5 + db.statusbarCount
+	statusbarCount = 20
 	statusbarRefresh = statusbarMaxTime / db.width / CS.db.scale
 	
 	buildFrames()
