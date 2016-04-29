@@ -579,7 +579,7 @@ do
 	end
 	
 	function CS:UNIT_POWER_FREQUENT(_, unitID, power)
-		if not (unitID == "player" and power == "SHADOW_ORBS") then return end
+		if not (unitID == "player" and power == "INSANITY") then return end
 		C_TimerAfter(delay, delayOrbs)  -- needs to be delayed so it fires after the SA events, otherwise everything will assume the SA is still in flight
 	end
 end
